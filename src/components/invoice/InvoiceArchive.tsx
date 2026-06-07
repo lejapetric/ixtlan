@@ -7,8 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { Search, FileText, Mail, CheckCircle, Trash2, Pencil } from 'lucide-react'
+import { Search, Eye, Mail, CheckCircle, Trash2, Pencil } from 'lucide-react'
 import { Invoice } from '@/types'
+import { InvoiceView } from './InvoiceView'
 
 const statusLabels = {
   draft: 'Osnutek',
@@ -37,6 +38,7 @@ export function InvoiceArchive({ onEditInvoice }: InvoiceArchiveProps) {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [activeTab, setActiveTab] = useState('all')
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null)
 
   const filterInvoices = (statusFilter?: string) => {
     return invoices.filter(inv => {
@@ -75,7 +77,9 @@ export function InvoiceArchive({ onEditInvoice }: InvoiceArchiveProps) {
             <TableCell>{formatDate(inv.dueDate)}</TableCell>
             <TableCell>
               <div className="flex gap-1">
-                <Button size="sm" variant="ghost" title="PDF"><FileText className="w-4 h-4" /></Button>
+                <Button size="sm" variant="ghost" title="Prikaži račun" onClick={() => setSelectedInvoiceId(inv.id)}>
+                  <Eye className="w-4 h-4" />
+                </Button>
                 <Button size="sm" variant="ghost" title="Pošlji"><Mail className="w-4 h-4" /></Button>
                 {inv.status === 'draft' && (
                   <>
@@ -125,6 +129,8 @@ export function InvoiceArchive({ onEditInvoice }: InvoiceArchiveProps) {
           </Tabs>
         </CardContent>
       </Card>
+
+      <InvoiceView invoiceId={selectedInvoiceId} open={!!selectedInvoiceId} onClose={() => setSelectedInvoiceId(null)} />
     </div>
   )
 }
