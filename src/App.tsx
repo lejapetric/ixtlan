@@ -7,21 +7,28 @@ import { Estimates } from '@/components/Estimates'
 import { Reports } from '@/components/Reports'
 import { UserManagement } from '@/components/admin/UserManagement'
 import { Settings } from '@/components/admin/Settings'
+import { Invoice } from '@/types'
 
 function App() {
   const [activeView, setActiveView] = useState('archive')
-  const userRole = 'tajnistvo' // spremeni ročno za testiranje
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null)
+  const userRole = 'tajnistvo'
 
   const renderView = () => {
     switch (activeView) {
-      case 'new-invoice': return <NewInvoice />
-      case 'archive': return <InvoiceArchive />
+      case 'new-invoice':
+        return <NewInvoice editingInvoice={editingInvoice} clearEditing={() => setEditingInvoice(null)} />
+      case 'archive':
+        return <InvoiceArchive onEditInvoice={(inv) => {
+          setEditingInvoice(inv)
+          setActiveView('new-invoice')
+        }} />
       case 'overdue': return <OverdueAlerts />
       case 'estimates': return <Estimates />
       case 'reports': return <Reports />
       case 'users': return <UserManagement />
       case 'settings': return <Settings />
-      default: return <InvoiceArchive />
+      default: return <InvoiceArchive onEditInvoice={() => {}} />
     }
   }
 

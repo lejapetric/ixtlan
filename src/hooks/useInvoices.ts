@@ -94,8 +94,8 @@ export function useInvoices() {
   }, [])
 
   const deleteInvoice = useCallback((id: string) => {
-    updateInvoice(id, { status: 'cancelled', cancelledReason: 'Storniran' })
-  }, [updateInvoice])
+    setInvoices(prev => prev.filter(inv => inv.id !== id))
+    }, [])
 
   return { invoices, customers: mockCustomers, services: mockServices, addInvoice, updateInvoice, deleteInvoice }
 }
