@@ -12,7 +12,7 @@ import { Invoice } from '@/types'
 function App() {
   const [activeView, setActiveView] = useState('archive')
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null)
-  const userRole = 'tajnistvo'
+  const userRole = 'admin'
 
   const renderView = () => {
     switch (activeView) {
