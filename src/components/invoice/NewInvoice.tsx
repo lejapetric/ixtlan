@@ -273,7 +273,7 @@ export function NewInvoice({ editingInvoice, clearEditing }: NewInvoiceProps) {
             <div className="w-80 space-y-2">
               <div className="flex justify-between"><span>Skupaj neto:</span><span className="font-medium">{formatCurrency(totals.netTotal)}</span></div>
               <div className="flex justify-between items-center"><span>Popust (%)</span><Input type="number" value={discountPercent} onChange={e => setDiscountPercent(Number(e.target.value))} className="w-24 text-right" step="1" /></div>
-              <div className="flex justify-between text-primary font-bold text-lg pt-2 border-t"><span>SKUPAJ BRUTO:</span><span>{formatCurrency(totals.totalGross)}</span></div>
+              <div className="flex justify-between text-primary font-bold text-lg pt-2 border-t"><span>SKUPNI ZNESEK (BRUTO):</span><span>{formatCurrency(totals.totalGross)}</span></div>
               <div className="text-xs text-gray-500">
                 DDV 22%: {formatCurrency(totals.vatBreakdown[22])}<br />
                 DDV 9,5%: {formatCurrency(totals.vatBreakdown[9.5])}<br />
