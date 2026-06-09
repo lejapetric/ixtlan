@@ -518,18 +518,19 @@ export function NewInvoice({ editingInvoice, clearEditing }: NewInvoiceProps) {
             </div>
 
           {/* Notes Section - Full Width */}
-          <div className="pt-4 border-t">
-            <label className="text-sm font-medium mb-2 block flex items-center gap-1">
-              <AlertCircle className="w-4 h-4" />
-              Opombe
-            </label>
-            <Input 
-              value={note} 
-              onChange={e => setNote(e.target.value)} 
-              placeholder="Sklic na naročilnico, dodatna pojasnila, način plačila..." 
-              className="w-full"
-            />
-          </div>
+            <div className="pt-4 border-t">
+              <label className="text-sm font-medium mb-2 block flex items-center gap-1">
+                <AlertCircle className="w-4 h-4" />
+                Opombe
+              </label>
+              <textarea 
+                value={note} 
+                onChange={e => setNote(e.target.value)} 
+                placeholder="Sklic na naročilnico, dodatna pojasnila, način plačila..." 
+                className="w-full min-h-[80px] px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y"
+                rows={3}
+              />
+            </div>
         </CardContent>
       </Card>
 
