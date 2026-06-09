@@ -8,6 +8,7 @@ export interface Customer {
   email: string
   phone?: string
   vatId?: string
+  selfBilling?: boolean
   isCompany: boolean
 }
 
@@ -27,9 +28,14 @@ export interface InvoiceItem {
   unit: string
   price: number
   vatRate: VatRate
+  discountPercent?: number
+  discountAmount?: number
   net: number
   vatAmount: number
   gross: number
+  reverseCharge?: boolean
+  vatExemptionReason?: string
+  itemNote?: string
   parcelNumber?: string
   cadastralMunicipality?: string
   cadastreName?: string

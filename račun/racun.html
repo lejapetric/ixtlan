@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profesionalni račun - Geodetsko podjetje</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+            background-color: #e6e9ef;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* Glavni okvir računa */
+        .invoice-wrapper {
+            max-width: 1280px;
+            width: 100%;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+
+        .invoice-inner {
+            padding: 40px 45px;
+        }
+
+        /* Glava - dve koloni */
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #1a5f7a;
+        }
+
+        .company-info h1 {
+            color: #1a5f7a;
+            font-size: 28px;
+            letter-spacing: -0.5px;
+            margin-bottom: 6px;
+        }
+
+        .company-info p {
+            color: #4a5568;
+            font-size: 13px;
+            line-height: 1.5;
+            margin: 3px 0;
+        }
+
+        .invoice-badge {
+            text-align: right;
+        }
+
+        .invoice-badge h2 {
+            background-color: #1a5f7a;
+            color: white;
+            padding: 8px 24px;
+            border-radius: 30px;
+            font-size: 26px;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 12px;
+        }
+
+        .invoice-numbers p {
+            font-size: 14px;
+            margin: 5px 0;
+            color: #2d3748;
+        }
+
+        /* Podatki (prodajalec, kupec, datum ...) */
+        .info-grid {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 30px;
+            margin-bottom: 35px;
+            background: #f8fafc;
+            padding: 20px 25px;
+            border-radius: 16px;
+        }
+
+        .info-card {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .info-card h4 {
+            color: #1a5f7a;
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            border-left: 3px solid #1a5f7a;
+            padding-left: 10px;
+        }
+
+        .info-card p {
+            font-size: 14px;
+            margin: 6px 0;
+            color: #2c3e50;
+            line-height: 1.4;
+            padding-left: 13px;
+        }
+
+        /* TABELA - PROFESIONALNA z vsemi stolpci */
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0 20px;
+            font-size: 13px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .items-table th {
+            background-color: #1f3b4c;
+            color: white;
+            padding: 14px 10px;
+            font-weight: 600;
+            text-align: center;
+            border: 1px solid #2c4e63;
+        }
+
+        .items-table td {
+            padding: 14px 10px;
+            border: 1px solid #e2e8f0;
+            text-align: center;
+            vertical-align: top;
+            color: #1e293b;
+        }
+
+        .items-table td:first-child {
+            text-align: left;
+            background-color: #fefef5;
+        }
+
+        .description-cell {
+            font-weight: 500;
+        }
+
+        .sub-text {
+            font-size: 11px;
+            color: #5b6e8c;
+            display: block;
+            margin-top: 5px;
+            font-weight: normal;
+        }
+
+        /* Povzetek (zadnji del) */
+        .summary-section {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 20px;
+            margin-bottom: 35px;
+        }
+
+        .summary-box {
+            width: 360px;
+            background-color: #fef9e6;
+            border-radius: 12px;
+            padding: 18px 22px;
+            border: 1px solid #ffe0a3;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px dashed #ddd;
+            font-size: 14px;
+        }
+
+        .summary-row.total {
+            border-bottom: none;
+            border-top: 2px solid #1a5f7a;
+            margin-top: 8px;
+            padding-top: 12px;
+            font-weight: 800;
+            font-size: 18px;
+            color: #1a5f7a;
+        }
+
+        .summary-label {
+            font-weight: 600;
+        }
+
+        /* Noga */
+        .footer-note {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #cbd5e1;
+            font-size: 12px;
+            color: #4a5568;
+            text-align: center;
+            background: #ffffff;
+        }
+
+        .payment-info {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-top: 15px;
+            background: #f1f5f9;
+            padding: 15px 20px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+
+        button.print-button {
+            background-color: #1a5f7a;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 40px;
+            cursor: pointer;
+            margin-bottom: 25px;
+            transition: all 0.2s;
+            display: inline-block;
+        }
+
+        button.print-button:hover {
+            background-color: #0e3e52;
+            transform: scale(1.02);
+        }
+
+        @media print {
+            body {
+                background-color: white;
+                padding: 0;
+                margin: 0;
+            }
+            .print-button {
+                display: none;
+            }
+            .invoice-wrapper {
+                box-shadow: none;
+                border-radius: 0;
+            }
+            .invoice-inner {
+                padding: 20px;
+            }
+            .summary-box {
+                background-color: #fef9e6;
+                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact;
+            }
+            .items-table th {
+                background-color: #1f3b4c;
+                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact;
+            }
+        }
+
+        @media (max-width: 950px) {
+            .invoice-inner {
+                padding: 20px;
+            }
+            .items-table {
+                font-size: 11px;
+            }
+            .items-table th, .items-table td {
+                padding: 8px 4px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="invoice-wrapper">
+    <div class="invoice-inner">
+        <div style="text-align: right; margin-bottom: 5px;">
+            <button class="print-button" onclick="window.print();">🖨️ Natisni / Shrani kot PDF</button>
+        </div>
+
+        <!-- GLAVA: PODJETJE + OZNAKA RAČUNA -->
+        <div class="header-row">
+            <div class="company-info">
+                <h1>GEODETSKI BIRO KRANJ d.o.o.</h1>
+                <p>Prešernova cesta 22, 4000 Kranj</p>
+                <p>ID za DDV: SI78945612 | Matična številka: 65412378</p>
+                <p>📞 04 234 5678 | ✉ info@geodetski-kranj.si</p>
+            </div>
+            <div class="invoice-badge">
+                <h2>RAČUN</h2>
+                <div class="invoice-numbers">
+                    <p><strong>Številka:</strong> R-2025-0047</p>
+                    <p><strong>Datum izdaje:</strong> 9. junij 2025</p>
+                    <p><strong>Datum storitve od:</strong> 5. junij 2025</p>
+                    <p><strong>Datum storitve do:</strong> 10. junij 2025</p>
+                    <p><strong>Datum zapadlosti:</strong> 9. julij 2025</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- PODATKI O STRANKI IN PLAČILU -->
+        <div class="info-grid">
+            <div class="info-card">
+                <h4>📌 Naročnik</h4>
+                <p><strong>Stanislav Horvat</strong></p>
+                <p>Cesta v Mestni log 8, 1000 Ljubljana</p>
+                <p>ID za DDV: SI11223344</p>
+                <p>stanislav.horvat@email.com</p>
+                <p>Matična številka: 65412378</p>
+            </div>
+            <div class="info-card">
+                <h4>💳 Plačilni pogoji</h4>
+                <p>TRR: SI56 2900 0000 1234 567</p>
+                <p>BIC: BKSI SI22</p>
+                <p>Rok plačila: 30 dni (brezgotovinsko)</p>
+                <p>Sklic: SI00 470-2025-0047</p>
+            </div>
+            <div class="info-card">
+                <h4>📄 Opombe</h4>
+                <p>Račun velja kot predračun do 30.6.2025.</p>
+                <p>Št. ponudbe: P-2405-12</p>
+                <p>Projekt: "Izmera za gradbeno dovoljenje"</p>
+            </div>
+        </div>
+
+        <!-- TABELA Z VSEMI ZAHTEVANIMI STOLPCI -->
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th>Opis</th>
+                    <th>Kol.</th>
+                    <th>Enota</th>
+                    <th>Cena/enoto</th>
+                    <th>Popust %</th>
+                    <th>Neto</th>
+                    <th>DDV %</th>
+                    <th>Bruto</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- PRVA POSTAVKA: Geodetsko snemanje -->
+                <tr>
+                    <td class="description-cell">
+                        Geodetsko snemanje
+                        <span class="sub-text">Parcela številka: 1234/5, k.o. Mestni log<br>dodaten opis: Detajlna izmera za projektno dokumentacijo</span>
+                    </td>
+                    <td>1</td>
+                    <td>ura</td>
+                    <td>150,00 €</td>
+                    <td>0%</td>
+                    <td>150,00 €</td>
+                    <td>22%</td>
+                    <td><strong>183,00 €</strong></td>
+                </tr>
+                <!-- Dodatna postavka za prikaz večje profesionalnosti (neobvezno, ampak lepo izgleda) -->
+                <tr>
+                    <td class="description-cell">
+                        Izdelava elaborata za vpis v kataster
+                        <span class="sub-text">Parcela številka: 1234/5 (z vsemi prilogami)</span>
+                    </td>
+                    <td>1</td>
+                    <td>kos</td>
+                    <td>245,00 €</td>
+                    <td>0%</td>
+                    <td>245,00 €</td>
+                    <td>22%</td>
+                    <td><strong>298,90 €</strong></td>
+                </tr>
+                <tr>
+                    <td class="description-cell">
+                        Postavitev začasnih geodetskih točk
+                        <span class="sub-text">Material + terenski pregled</span>
+                    </td>
+                    <td>2</td>
+                    <td>komplet</td>
+                    <td>87,50 €</td>
+                    <td>0%</td>
+                    <td>175,00 €</td>
+                    <td>22%</td>
+                    <td><strong>213,50 €</strong></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- POVZETEK (skupaj neto, DDV, bruto) - izračunan ročno iz podane prve postavke in ostalih -->
+        <div class="summary-section">
+            <div class="summary-box">
+                <div class="summary-row">
+                    <span class="summary-label">Osnova za DDV (neto skupaj):</span>
+                    <span>570,00 €</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">DDV 22%:</span>
+                    <span>125,40 €</span>
+                </div>
+                <div class="summary-row total">
+                    <span>SKUPAJ ZA PLAČILO (bruto):</span>
+                    <span>695,40 €</span>
+                </div>
+                <div style="font-size: 11px; margin-top: 10px; text-align: center; color: #5a5a5a;">
+                    * DDV obračunan po veljavni stopnji 22%.
+                </div>
+            </div>
+        </div>
+
+        <!-- Pregled zneska za vašo specifično postavko (Geodetsko snemanje) - dodatno, da izstopa -->
+        <div style="background: #eef2ff; padding: 14px 20px; border-radius: 12px; margin: 10px 0 20px; display: flex; justify-content: space-between; flex-wrap: wrap;">
+            <div><strong>🔍 Poudarek postavke "Geodetsko snemanje":</strong></div>
+            <div>Neto: 150,00 € | DDV 22% = 33,00 € | <strong>Bruto: 183,00 €</strong></div>
+        </div>
+
+        <!-- Podatki za transakcijo in hvala -->
+        <div class="payment-info">
+            <span>🏦 Banka: NKBM d.d. | Odprtje TRR: 01.01.2010</span>
+            <span>📱 Možnost plačila s pro forma računom po dogovoru.</span>
+            <span>📨 Račun poslan elektronsko.</span>
+        </div>
+
+        <div class="footer-note">
+            <p>Hvala za vaše zaupanje. Račun je izdan v skladu z Zakonom o DDV (ZDDV-1). Podjetje je vpisano v sodni register.</p>
+            <p style="margin-top: 8px;">Geodetski biro Kranj d.o.o. | www.geodetski-kranj.si | Telefon: 04 234 5678</p>
+            <p style="font-size: 10px; margin-top: 12px;">Račun je potrjen brez žiga, saj je izdan elektronsko v skladu s slovensko zakonodajo.</p>
+        </div>
+    </div>
+</div>
+</body>
+</html>

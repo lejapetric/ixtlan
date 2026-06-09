@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { useInvoices } from '@/hooks/useInvoices'
 import { InvoiceItem, VatRate, Customer, Invoice } from '@/types'
 import { formatCurrency } from '@/lib/utils'
-import { Plus, Trash2, Edit, Search, ChevronDown, Building2, MapPin, Mail, Phone, FileText as FileIcon, Calendar, DollarSign, AlertCircle, ReceiptText, X } from 'lucide-react'
+import { Plus, Trash2, Edit, Search, ChevronDown, Building2, MapPin, Mail, Phone, FileText as FileIcon, Calendar, DollarSign, AlertCircle, ReceiptText, X, ChevronUp } from 'lucide-react'
 import DatePicker from 'react-datepicker'
 import { sl } from 'date-fns/locale'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -19,14 +19,34 @@ interface NewInvoiceProps {
   clearEditing?: () => void
 }
 
+// Predlagane storitve za autocomplete
+const suggestedServices: Array<{
+  description: string
+  price: number
+  unit: string
+  vatRate: VatRate
+}> = [
+  { description: 'Geodetsko snemanje', price: 150, unit: 'ura', vatRate: 22 },
+  { description: 'Izdelava elaborata', price: 300, unit: 'kos', vatRate: 22 },
+  { description: 'Parcelacija', price: 250, unit: 'ura', vatRate: 9.5 },
+  { description: 'Katastrska izmera', price: 200, unit: 'ura', vatRate: 22 },
+  { description: 'Prenos podatkov', price: 80, unit: 'ura', vatRate: 22 },
+  { description: 'Strokovno mnenje', price: 180, unit: 'ura', vatRate: 22 },
+  { description: 'Legalizacija objekta', price: 400, unit: 'kos', vatRate: 9.5 },
+  { description: 'Geodetski načrt', price: 120, unit: 'm²', vatRate: 22 },
+]
+
 export function NewInvoice({ editingInvoice, clearEditing }: NewInvoiceProps) {
   const { customers, addInvoice, updateInvoice } = useInvoices()
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [showServiceDropdown, setShowServiceDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const serviceDropdownRef = useRef<HTMLDivElement>(null)
   const [items, setItems] = useState<InvoiceItem[]>([])
   const [discountPercent, setDiscountPercent] = useState(0)
+  const [discountError, setDiscountError] = useState('')
   const [issueDate, setIssueDate] = useState<Date | null>(new Date())
   const [serviceDateFrom, setServiceDateFrom] = useState<Date | null>(new Date())
   const [serviceDateTo, setServiceDateTo] = useState<Date | null>(new Date())
@@ -51,17 +71,29 @@ export function NewInvoice({ editingInvoice, clearEditing }: NewInvoiceProps) {
     unit: 'ura',
     price: 0,
     vatRate: 22,
+    discountPercent: 0,
     parcelNumber: '',
     cadastralMunicipality: '',
     cadastreName: '',
     landRegisterId: '',
+    reverseCharge: false,
+    vatExemptionReason: '',
+    itemNote: '',
   })
+
+  // Filtrirane storitve glede na vnos
+  const filteredServices = suggestedServices.filter(service =>
+    service.description.toLowerCase().includes((newItem.description || '').toLowerCase())
+  )
 
   // Click outside handler
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false)
+      }
+      if (serviceDropdownRef.current && !serviceDropdownRef.current.contains(event.target as Node)) {
+        setShowServiceDropdown(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -78,6 +110,15 @@ export function NewInvoice({ editingInvoice, clearEditing }: NewInvoiceProps) {
       }
     }
   }, [serviceDateFrom, serviceDateTo])
+
+  // Validate discount
+  useEffect(() => {
+    if (discountPercent < 0 || discountPercent > 100) {
+      setDiscountError('Popust mora biti med 0 in 100')
+    } else {
+      setDiscountError('')
+    }
+  }, [discountPercent])
 
   // Filter customers based on search term
   const filteredCustomers = customers.filter(customer => 
@@ -115,33 +156,64 @@ export function NewInvoice({ editingInvoice, clearEditing }: NewInvoiceProps) {
     setIsDropdownOpen(false)
   }
 
+  const clearServiceSelection = () => {
+    setNewItem({
+      description: '',
+      quantity: 1,
+      unit: 'ura',
+      price: 0,
+      vatRate: 22,
+      discountPercent: 0,
+      parcelNumber: '',
+      cadastralMunicipality: '',
+      cadastreName: '',
+      landRegisterId: '',
+      reverseCharge: false,
+      vatExemptionReason: '',
+      itemNote: '',
+    })
+    setShowServiceDropdown(false)
+  }
+
   const calculateItemTotals = (item: Partial<InvoiceItem>) => {
     const qty = item.quantity || 0
     const price = item.price || 0
-    const net = qty * price
+    const discountPercent = item.discountPercent || 0
+    const netBeforeDiscount = qty * price
+    const discountAmount = netBeforeDiscount * discountPercent / 100
+    const net = netBeforeDiscount - discountAmount
     const vatAmount = net * (item.vatRate || 0) / 100
     const gross = net + vatAmount
-    return { net, vatAmount, gross }
+    return { net, vatAmount, gross, discountAmount }
   }
 
   const handleAddOrUpdateItem = () => {
     if (!newItem.description || !newItem.quantity || !newItem.price) return
-    const { net, vatAmount, gross } = calculateItemTotals(newItem)
+    if (newItem.vatRate === 0 && !newItem.vatExemptionReason) return
+    
+    const { net, vatAmount, gross, discountAmount } = calculateItemTotals(newItem)
+    
     const fullItem: InvoiceItem = {
       id: editingItem?.id || crypto.randomUUID(),
       description: newItem.description,
-      quantity: newItem.quantity!,
+      quantity: newItem.quantity,
       unit: newItem.unit || 'ura',
-      price: newItem.price!,
+      price: newItem.price,
       vatRate: newItem.vatRate as VatRate,
-      net,
-      vatAmount,
-      gross,
+      discountPercent: newItem.discountPercent || 0,
+      discountAmount: discountAmount,
+      net: net,
+      vatAmount: vatAmount,
+      gross: gross,
       parcelNumber: newItem.parcelNumber,
       cadastralMunicipality: newItem.cadastralMunicipality,
       cadastreName: newItem.cadastreName,
       landRegisterId: newItem.landRegisterId,
+      reverseCharge: newItem.reverseCharge || false,
+      vatExemptionReason: newItem.vatExemptionReason,
+      itemNote: newItem.itemNote,
     }
+    
     if (editingItem) {
       setItems(items.map(i => i.id === editingItem.id ? fullItem : i))
     } else {
@@ -159,11 +231,16 @@ export function NewInvoice({ editingInvoice, clearEditing }: NewInvoiceProps) {
       unit: 'ura',
       price: 0,
       vatRate: 22,
+      discountPercent: 0,
       parcelNumber: '',
       cadastralMunicipality: '',
       cadastreName: '',
       landRegisterId: '',
+      reverseCharge: false,
+      vatExemptionReason: '',
+      itemNote: '',
     })
+    setShowServiceDropdown(false)
   }
 
   const editItem = (item: InvoiceItem) => {
@@ -173,7 +250,9 @@ export function NewInvoice({ editingInvoice, clearEditing }: NewInvoiceProps) {
   }
 
   const deleteItem = (id: string) => {
-    setItems(items.filter(i => i.id !== id))
+    if (confirm('Ali ste prepričani, da želite izbrisati to postavko?')) {
+      setItems(items.filter(i => i.id !== id))
+    }
   }
 
   const calculateTotals = () => {
@@ -202,6 +281,7 @@ export function NewInvoice({ editingInvoice, clearEditing }: NewInvoiceProps) {
     if (!serviceDateFrom) return false
     if (!serviceDateTo) return false
     if (dateError) return false
+    if (discountError) return false
     if (items.length === 0) return false
     return true
   }
@@ -214,6 +294,7 @@ export function NewInvoice({ editingInvoice, clearEditing }: NewInvoiceProps) {
     if (!serviceDateFrom) missingFields.push('datum storitve (od)')
     if (!serviceDateTo) missingFields.push('datum storitve (do)')
     if (dateError) missingFields.push(dateError)
+    if (discountError) missingFields.push(discountError)
     if (items.length === 0) missingFields.push('vsaj ena postavka')
     
     if (missingFields.length > 0) {
@@ -246,6 +327,15 @@ export function NewInvoice({ editingInvoice, clearEditing }: NewInvoiceProps) {
       }
     }
 
+    // Preveri, če ima katera postavka obrnjeno davčno obveznost
+    const hasReverseCharge = items.some(item => item.reverseCharge)
+    const reverseChargeClause = hasReverseCharge ? '\n\nObrnjena davčna obveznost – DDV obračuna kupec.' : ''
+    
+    // Preveri, če ima kupec samofakturiranje
+    const selfBillingClause = selectedCustomer?.selfBilling 
+      ? '\n\nSamofakturiranje – račun izdal kupec v imenu in za račun dobavitelja.' 
+      : ''
+
     const invoiceData = {
       id: editingInvoice?.id || crypto.randomUUID(),
       number: editingInvoice?.number || (status === 'issued' ? `2026-${String(Math.floor(Math.random() * 1000)).padStart(4, '0')}` : 'OSNUTEK'),
@@ -264,7 +354,7 @@ export function NewInvoice({ editingInvoice, clearEditing }: NewInvoiceProps) {
       totalGross: totals.totalGross,
       vatBreakdown: totals.vatBreakdown,
       status: status === 'estimate' ? 'draft' : status,
-      note,
+      note: note + reverseChargeClause + selfBillingClause,
       createdAt: editingInvoice?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
@@ -306,15 +396,52 @@ export function NewInvoice({ editingInvoice, clearEditing }: NewInvoiceProps) {
         onClick={onClick}
         readOnly
         placeholder={placeholder}
-        className="cursor-pointer bg-white pr-20"
+        className="cursor-pointer bg-white pr-10"
       />
       <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
     </div>
   )
 
+  // Number input with up/down buttons
+  const NumberInput = ({ value, onChange, min = 0, step = 0.01, className = "" }: any) => {
+    const handleChange = (newValue: number) => {
+      if (newValue < min) newValue = min
+      onChange(newValue)
+    }
+
+    return (
+      <div className="relative">
+        <Input 
+          type="number" 
+          step={step}
+          min={min}
+          value={value} 
+          onChange={(e) => handleChange(parseFloat(e.target.value) || 0)}
+          className={`pr-16 ${className}`}
+        />
+        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex flex-col">
+          <button
+            type="button"
+            onClick={() => handleChange((parseFloat(value) || 0) + step)}
+            className="h-4 w-6 flex items-center justify-center text-gray-400 hover:text-gray-600"
+          >
+            <ChevronUp className="w-3 h-3" />
+          </button>
+          <button
+            type="button"
+            onClick={() => handleChange((parseFloat(value) || 0) - step)}
+            className="h-4 w-6 flex items-center justify-center text-gray-400 hover:text-gray-600"
+          >
+            <ChevronDown className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
-      {/* Invoice Number Header - More Prominent */}
+      {/* Invoice Number Header */}
       <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg p-4 border border-primary/20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -338,7 +465,6 @@ export function NewInvoice({ editingInvoice, clearEditing }: NewInvoiceProps) {
       <Card>
         <CardHeader><CardTitle>Podatki o računu</CardTitle></CardHeader>
         <CardContent className="space-y-6">
-          {/* Responsive two-column layout */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Left Column - Customer Section */}
             <div className="space-y-4">
@@ -448,153 +574,485 @@ export function NewInvoice({ editingInvoice, clearEditing }: NewInvoiceProps) {
                           <span className="text-gray-500">ID za DDV:</span> {selectedCustomer.vatId}
                         </div>
                       )}
+                      {selectedCustomer.selfBilling && (
+                        <div className="mt-2 text-sm text-blue-600 border-t border-blue-200 pt-2">
+                          <span className="font-medium">✓ Samofakturiranje</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Right Column - Dates Section - Grid 2x2 */}
+            {/* Right Column - Dates Section */}
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium mb-1 block flex items-center gap-1">
-                  <Calendar className="w-4 h-4" />
-                  Datum izdaje *
-                </label>
-                <DatePicker
-                  selected={issueDate}
-                  onChange={(date: Date | null) => setIssueDate(date)}
-                  dateFormat="dd.MM.yyyy"
-                  locale={sl}
-                  customInput={<CustomDateInput />}
-                  className="w-full"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block flex items-center gap-1">
-                  <DollarSign className="w-4 h-4" />
-                  Rok plačila *
-                </label>
-                <DatePicker
-                  selected={dueDate}
-                  onChange={(date: Date | null) => setDueDate(date)}
-                  dateFormat="dd.MM.yyyy"
-                  locale={sl}
-                  customInput={<CustomDateInput />}
-                  className="w-full"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">Datum storitve od *</label>
-                <DatePicker
-                  selected={serviceDateFrom}
-                  onChange={(date: Date | null) => setServiceDateFrom(date)}
-                  dateFormat="dd.MM.yyyy"
-                  locale={sl}
-                  customInput={<CustomDateInput />}
-                  className="w-full"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">Datum storitve do *</label>
-                <DatePicker
-                  selected={serviceDateTo}
-                  onChange={(date: Date | null) => setServiceDateTo(date)}
-                  dateFormat="dd.MM.yyyy"
-                  locale={sl}
-                  customInput={<CustomDateInput />}
-                  className="w-full"
-                />
-                {dateError && (
-                  <div className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    {dateError}
-                  </div>
-                )}
+                <div>
+                  <label className="text-sm font-medium mb-1 block flex items-center gap-1">
+                    <Calendar className="w-4 h-4" />
+                    Datum izdaje *
+                  </label>
+                  <DatePicker
+                    selected={issueDate}
+                    onChange={(date: Date | null) => setIssueDate(date)}
+                    dateFormat="dd.MM.yyyy"
+                    locale={sl}
+                    customInput={<CustomDateInput />}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block flex items-center gap-1">
+                    <DollarSign className="w-4 h-4" />
+                    Rok plačila *
+                  </label>
+                  <DatePicker
+                    selected={dueDate}
+                    onChange={(date: Date | null) => setDueDate(date)}
+                    dateFormat="dd.MM.yyyy"
+                    locale={sl}
+                    customInput={<CustomDateInput />}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Datum storitve od *</label>
+                  <DatePicker
+                    selected={serviceDateFrom}
+                    onChange={(date: Date | null) => setServiceDateFrom(date)}
+                    dateFormat="dd.MM.yyyy"
+                    locale={sl}
+                    customInput={<CustomDateInput />}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Datum storitve do *</label>
+                  <DatePicker
+                    selected={serviceDateTo}
+                    onChange={(date: Date | null) => setServiceDateTo(date)}
+                    dateFormat="dd.MM.yyyy"
+                    locale={sl}
+                    customInput={<CustomDateInput />}
+                  />
+                  {dateError && (
+                    <div className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      {dateError}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-            </div>
 
-          {/* Notes Section - Full Width */}
-            <div className="pt-4 border-t">
-              <label className="text-sm font-medium mb-2 block flex items-center gap-1">
-                <AlertCircle className="w-4 h-4" />
-                Opombe
-              </label>
-              <textarea 
-                value={note} 
-                onChange={e => setNote(e.target.value)} 
-                placeholder="Sklic na naročilnico, dodatna pojasnila, način plačila..." 
-                className="w-full min-h-[80px] px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y"
-                rows={3}
-              />
-            </div>
+          {/* Notes Section */}
+          <div className="pt-4 border-t">
+            <label className="text-sm font-medium mb-2 block flex items-center gap-1">
+              <AlertCircle className="w-4 h-4" />
+              Opombe
+            </label>
+            <textarea 
+              value={note} 
+              onChange={e => setNote(e.target.value)} 
+              placeholder="Sklic na naročilnico, dodatna pojasnila, način plačila..." 
+              className="w-full min-h-[80px] px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y"
+              rows={3}
+            />
+          </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex-row justify-between items-center">
           <CardTitle>Postavke računa</CardTitle>
+          
           <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-            <DialogTrigger asChild><Button size="sm"><Plus className="w-4 h-4 mr-1" /> Dodaj postavko</Button></DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader><DialogTitle>{editingItem ? 'Uredi postavko' : 'Nova postavka'}</DialogTitle></DialogHeader>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="w-4 h-4 mr-1" /> Dodaj postavko
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{editingItem ? 'Uredi postavko' : 'Nova postavka'}</DialogTitle>
+              </DialogHeader>
+              
               <div className="grid grid-cols-2 gap-4 py-4">
-                <div className="col-span-2"><label>Opis storitve *</label><Input value={newItem.description} onChange={e => setNewItem({...newItem, description: e.target.value})} /></div>
-                <div><label>Količina</label><Input type="number" step="0.01" value={newItem.quantity} onChange={e => setNewItem({...newItem, quantity: parseFloat(e.target.value)})} /></div>
-                <div><label>Enota</label><Input value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})} /></div>
-                <div><label>Cena / enoto (€)</label><Input type="number" step="0.01" value={newItem.price} onChange={e => setNewItem({...newItem, price: parseFloat(e.target.value)})} /></div>
-                <div><label>DDV stopnja (%)</label>
-                  <Select value={String(newItem.vatRate)} onValueChange={(val) => setNewItem({...newItem, vatRate: parseInt(val) as VatRate})}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="22">22%</SelectItem><SelectItem value="9.5">9,5%</SelectItem><SelectItem value="5">5%</SelectItem><SelectItem value="0">0%</SelectItem></SelectContent>
-                  </Select>
-                </div>
-                <div className="col-span-2 border-t pt-2">
-                  <div className="font-medium mb-2">Geodetski podatki (opcijsko)</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input placeholder="Številka parcele" value={newItem.parcelNumber || ''} onChange={e => setNewItem({...newItem, parcelNumber: e.target.value})} />
-                    <Input placeholder="Katastrska občina" value={newItem.cadastralMunicipality || ''} onChange={e => setNewItem({...newItem, cadastralMunicipality: e.target.value})} />
-                    <Input placeholder="Ime katastra" value={newItem.cadastreName || ''} onChange={e => setNewItem({...newItem, cadastreName: e.target.value})} />
-                    <Input placeholder="ID zaznambe" value={newItem.landRegisterId || ''} onChange={e => setNewItem({...newItem, landRegisterId: e.target.value})} />
+                {/* Opis storitve - z autocomplete */}
+                <div className="col-span-2 relative" ref={serviceDropdownRef}>
+                  <label className="text-sm font-medium mb-1 block">Opis storitve *</label>
+                  <div className="relative">
+                    <div className="flex items-center border rounded-md px-3 py-2 bg-white">
+                      <input
+                        type="text"
+                        placeholder="Vnesite opis storitve..."
+                        value={newItem.description}
+                        onChange={(e) => {
+                          setNewItem({...newItem, description: e.target.value})
+                          setShowServiceDropdown(true)
+                        }}
+                        onFocus={() => setShowServiceDropdown(true)}
+                        className="flex-1 outline-none bg-transparent text-sm"
+                      />
+                      {newItem.description ? (
+                        <X 
+                          className="w-4 h-4 text-gray-400 ml-2 cursor-pointer hover:text-red-500 transition-colors flex-shrink-0" 
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            clearServiceSelection()
+                          }}
+                        />
+                      ) : (
+                        <ChevronDown 
+                          className={`w-4 h-4 text-gray-400 ml-2 transition-transform ${showServiceDropdown ? 'rotate-180' : ''} flex-shrink-0 cursor-pointer`}
+                          onClick={() => setShowServiceDropdown(!showServiceDropdown)}
+                        />
+                      )}
+                    </div>
+                    {showServiceDropdown && filteredServices.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                        {filteredServices.map((service, index) => (
+                          <div 
+                            key={index}
+                            className="p-3 hover:bg-gray-100 cursor-pointer border-b last:border-b-0 transition-colors"
+                            onClick={() => {
+                              setNewItem({
+                                ...newItem,
+                                description: service.description,
+                                price: service.price,
+                                unit: service.unit,
+                                vatRate: service.vatRate
+                              })
+                              setShowServiceDropdown(false)
+                            }}
+                          >
+                            <div className="font-medium text-gray-900">{service.description}</div>
+                            <div className="text-sm text-gray-500 mt-1">
+                              {service.price.toFixed(2)} € / {service.unit} • {service.vatRate}% DDV
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
+                
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Količina *</label>
+                  <NumberInput 
+                    value={newItem.quantity || 1} 
+                    onChange={(val: number) => setNewItem({...newItem, quantity: val})}
+                    min={0}
+                    step={0.5}
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Enota</label>
+                  <Select value={newItem.unit} onValueChange={(val) => setNewItem({...newItem, unit: val})}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ura">ura</SelectItem>
+                      <SelectItem value="kos">kos</SelectItem>
+                      <SelectItem value="dan">dan</SelectItem>
+                      <SelectItem value="m²">m²</SelectItem>
+                      <SelectItem value="kom">kom</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Cena / enoto (€) *</label>
+                  <NumberInput 
+                    value={newItem.price || 0} 
+                    onChange={(val: number) => setNewItem({...newItem, price: val})}
+                    min={0}
+                    step={5}
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium mb-1 block">DDV stopnja (%)</label>
+                  <Select 
+                    value={String(newItem.vatRate)} 
+                    onValueChange={(val) => {
+                      setNewItem({
+                        ...newItem, 
+                        vatRate: parseInt(val) as VatRate,
+                        vatExemptionReason: parseInt(val) === 0 ? '' : newItem.vatExemptionReason
+                      })
+                    }}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="22">22%</SelectItem>
+                      <SelectItem value="9.5">9,5%</SelectItem>
+                      <SelectItem value="5">5%</SelectItem>
+                      <SelectItem value="0">0% (oprostitev DDV)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Zakonska podlaga za 0% DDV */}
+                {newItem.vatRate === 0 && (
+                  <div className="col-span-2">
+                    <label className="text-sm font-medium mb-1 block">
+                      Zakonska podlaga za oprostitev DDV *
+                    </label>
+                    <Select 
+                      value={newItem.vatExemptionReason || ''} 
+                      onValueChange={(val) => setNewItem({...newItem, vatExemptionReason: val})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Izberite zakonsko podlago" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="91. člen ZDDV-1 – oprostitev pri izvozu">
+                          91. člen ZDDV-1 – oprostitev pri izvozu
+                        </SelectItem>
+                        <SelectItem value="92. člen ZDDV-1 – oprostitev pri uvozu">
+                          92. člen ZDDV-1 – oprostitev pri uvozu
+                        </SelectItem>
+                        <SelectItem value="94. člen ZDDV-1 – mednarodni prevoz">
+                          94. člen ZDDV-1 – mednarodni prevoz
+                        </SelectItem>
+                        <SelectItem value="96. člen ZDDV-1 – nepremičnine">
+                          96. člen ZDDV-1 – nepremičnine
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Popust na postavko */}
+                <div className="col-span-2 border-t pt-3">
+                  <div className="font-medium mb-2 text-sm">Popust na postavko</div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Popust (%)</label>
+                      <NumberInput 
+                        value={newItem.discountPercent || 0} 
+                        onChange={(val: number) => {
+                          if (val >= 0 && val <= 100) {
+                            setNewItem({...newItem, discountPercent: val})
+                          }
+                        }}
+                        min={0}
+                        max={100}
+                        step={1}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Znesek popusta (€)</label>
+                      <Input 
+                        type="text" 
+                        disabled 
+                        value={(() => {
+                          const qty = newItem.quantity || 0
+                          const price = newItem.price || 0
+                          const discountPercent = newItem.discountPercent || 0
+                          const net = qty * price
+                          const discountAmount = net * discountPercent / 100
+                          return discountAmount.toFixed(2)
+                        })()} 
+                        className="bg-gray-100"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Obrnjena davčna obveznost */}
+                <div className="col-span-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={newItem.reverseCharge || false}
+                      onChange={(e) => setNewItem({...newItem, reverseCharge: e.target.checked})}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm">Obrnjena davčna obveznost (DDV obračuna kupec)</span>
+                  </label>
+                </div>
+
+                {/* Geodetski podatki */}
+                <div className="col-span-2 border-t pt-3">
+                  <div className="font-medium mb-2 text-sm">Geodetski podatki (opcijsko)</div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Številka parcele</label>
+                      <Input 
+                        placeholder="npr. 325/4" 
+                        value={newItem.parcelNumber || ''} 
+                        onChange={e => setNewItem({...newItem, parcelNumber: e.target.value})} 
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Katastrska občina</label>
+                      <Input 
+                        placeholder="npr. 1434 Šiška" 
+                        value={newItem.cadastralMunicipality || ''} 
+                        onChange={e => setNewItem({...newItem, cadastralMunicipality: e.target.value})} 
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Ime katastra</label>
+                      <Input 
+                        placeholder="npr. Kataster stavb" 
+                        value={newItem.cadastreName || ''} 
+                        onChange={e => setNewItem({...newItem, cadastreName: e.target.value})} 
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">ID zaznambe</label>
+                      <Input 
+                        placeholder="npr. 1434 325/4" 
+                        value={newItem.landRegisterId || ''} 
+                        onChange={e => setNewItem({...newItem, landRegisterId: e.target.value})} 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Opombe postavke */}
+                <div className="col-span-2 border-t pt-3">
+                  <label className="text-sm font-medium mb-1 block flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" />
+                    Opombe k postavki
+                  </label>
+                  <textarea 
+                    value={newItem.itemNote || ''} 
+                    onChange={e => setNewItem({...newItem, itemNote: e.target.value})} 
+                    placeholder="Dodatna pojasnila k tej postavki..." 
+                    className="w-full min-h-[60px] px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y"
+                    rows={2}
+                  />
+                </div>
               </div>
-              <DialogFooter><Button variant="ghost" onClick={resetModal}>Prekliči</Button><Button onClick={handleAddOrUpdateItem}>{editingItem ? 'Posodobi' : 'Dodaj'}</Button></DialogFooter>
+
+              {/* Validacijsko sporočilo */}
+              {(!newItem.description || !newItem.quantity || !newItem.price || (newItem.vatRate === 0 && !newItem.vatExemptionReason)) && (
+                <div className="text-red-500 text-sm mt-2 text-center">
+                  {!newItem.description && "Izpolnite opis storitve. "}
+                  {!newItem.quantity && "Vnesite količino. "}
+                  {!newItem.price && "Vnesite ceno. "}
+                  {newItem.vatRate === 0 && !newItem.vatExemptionReason && "Izberite zakonsko podlago za 0% DDV."}
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button variant="ghost" onClick={resetModal}>Prekliči</Button>
+                <Button 
+                  onClick={handleAddOrUpdateItem}
+                  disabled={!newItem.description || !newItem.quantity || !newItem.price || (newItem.vatRate === 0 && !newItem.vatExemptionReason)}
+                >
+                  {editingItem ? 'Posodobi' : 'Dodaj'}
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </CardHeader>
         <CardContent>
           <Table>
-            <TableHeader><TableRow><TableHead>Opis</TableHead><TableHead className="text-right">Kol.</TableHead><TableHead>Enota</TableHead><TableHead className="text-right">Cena</TableHead><TableHead className="text-right">DDV %</TableHead><TableHead className="text-right">Neto</TableHead><TableHead className="text-right">Bruto</TableHead><TableHead></TableHead></TableRow></TableHeader>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Opis</TableHead>
+                <TableHead className="text-right">Kol.</TableHead>
+                <TableHead>Enota</TableHead>
+                <TableHead className="text-right">Cena/enoto</TableHead>
+                <TableHead className="text-right">Popust %</TableHead>
+                <TableHead className="text-right">Neto</TableHead>
+                <TableHead className="text-right">DDV %</TableHead>
+                <TableHead className="text-right">Bruto</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
             <TableBody>
               {items.map(item => (
                 <TableRow key={item.id}>
-                  <TableCell>{item.description}{item.parcelNumber && <Badge variant="secondary" className="ml-2 text-xs">Parcela {item.parcelNumber}</Badge>}</TableCell>
-                  <TableCell className="text-right">{item.quantity}</TableCell><TableCell>{item.unit}</TableCell>
+                  <TableCell>
+                    {item.description}
+                    {item.parcelNumber && <Badge variant="secondary" className="ml-2 text-xs">Parcela {item.parcelNumber}</Badge>}
+                    {item.reverseCharge && <Badge variant="outline" className="ml-2 text-xs bg-yellow-50">Obrnjena DO</Badge>}
+                    {item.itemNote && <div className="text-xs text-gray-500 mt-1">{item.itemNote}</div>}
+                    {item.vatRate === 0 && item.vatExemptionReason && (
+                      <div className="text-xs text-gray-500 mt-1">{item.vatExemptionReason}</div>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">{item.quantity}</TableCell>
+                  <TableCell>{item.unit}</TableCell>
                   <TableCell className="text-right">{formatCurrency(item.price)}</TableCell>
-                  <TableCell className="text-right">{item.vatRate}%</TableCell>
+                  <TableCell className="text-right">{item.discountPercent || 0}%</TableCell>
                   <TableCell className="text-right">{formatCurrency(item.net)}</TableCell>
+                  <TableCell className="text-right">{item.vatRate}%</TableCell>
                   <TableCell className="text-right">{formatCurrency(item.gross)}</TableCell>
-                  <TableCell><div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => editItem(item)}><Edit className="w-4 h-4" /></Button><Button size="sm" variant="ghost" onClick={() => deleteItem(item.id)}><Trash2 className="w-4 h-4" /></Button></div></TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => editItem(item)}>
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => deleteItem(item.id)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
-              {items.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-gray-400">Ni postavk. Kliknite "Dodaj postavko".</TableCell></TableRow>}
+              {items.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center text-gray-400">
+                    Ni postavk. Kliknite "Dodaj postavko".
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
 
           <div className="mt-4 flex justify-end">
-            <div className="w-80 space-y-2">
-              <div className="flex justify-between"><span>Skupaj neto:</span><span className="font-medium">{formatCurrency(totals.netTotal)}</span></div>
-              <div className="flex justify-between items-center"><span>Popust (%)</span><Input type="number" value={discountPercent} onChange={e => setDiscountPercent(Number(e.target.value))} className="w-24 text-right" step="1" /></div>
-              <div className="flex justify-between text-primary font-bold text-lg pt-2 border-t"><span>SKUPNI ZNESEK (BRUTO):</span><span>{formatCurrency(totals.totalGross)}</span></div>
-              <div className="text-xs text-gray-500">
-                DDV 22%: {formatCurrency(totals.vatBreakdown[22])}<br />
-                DDV 9,5%: {formatCurrency(totals.vatBreakdown[9.5])}<br />
-                DDV 5%: {formatCurrency(totals.vatBreakdown[5])}<br />
-                DDV 0%: {formatCurrency(totals.vatBreakdown[0])}
+            <div className="w-96 space-y-2">
+              <div className="flex justify-between">
+                <span>Skupaj neto:</span>
+                <span className="font-medium">{formatCurrency(totals.netTotal)}</span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span>Popust na račun (%)</span>
+                <div className="flex items-center gap-2">
+                  <NumberInput 
+                    value={discountPercent} 
+                    onChange={(val: number) => setDiscountPercent(val)} 
+                    className="w-24 text-right"
+                    min={0}
+                    max={100}
+                    step={1}
+                  />
+                  <span>%</span>
+                </div>
+              </div>
+              
+              {discountError && (
+                <div className="text-red-500 text-xs text-right">
+                  {discountError}
+                </div>
+              )}
+              
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>Znesek popusta:</span>
+                <span>{formatCurrency(totals.discountAmount)}</span>
+              </div>
+              
+              <div className="flex justify-between text-primary font-bold text-lg pt-2 border-t">
+                <span>SKUPNI ZNESEK (BRUTO):</span>
+                <span>{formatCurrency(totals.totalGross)}</span>
+              </div>
+              
+              <div className="text-xs text-gray-500 pt-2 border-t">
+                {Object.entries(totals.vatBreakdown).map(([rate, amount]) => (
+                  amount > 0 && (
+                    <div key={rate} className="flex justify-between">
+                      <span>DDV {rate}%:</span>
+                      <span>{formatCurrency(amount)}</span>
+                    </div>
+                  )
+                ))}
               </div>
             </div>
           </div>
