@@ -22,7 +22,7 @@ export function OverdueAlerts() {
           <Card className="bg-red-50 border-red-200">
             <CardContent className="pt-6">
               <div className="text-red-700 font-semibold">
-                ⚠️ {overdue.length} račun(i) so zapadli. Skupaj {formatCurrency(totalOverdue)}.
+                ⚠️ {overdue.length} računov je zapadlih. Skupaj {formatCurrency(totalOverdue)}.
               </div>
             </CardContent>
           </Card>
