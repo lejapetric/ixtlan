@@ -6,6 +6,8 @@ export interface Customer {
   taxId: string
   address: string
   email: string
+  phone?: string
+  vatId?: string
   isCompany: boolean
 }
 
