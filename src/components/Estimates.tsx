@@ -21,8 +21,12 @@ interface EstimatesProps {
 }
 
 export function Estimates({ onNewEstimate, setActiveView }: EstimatesProps) {
-  const { addInvoice } = useInvoices()
+  const { addInvoice, customers } = useInvoices()
   const [estimates, setEstimates] = useState(mockEstimates)
+
+  const getCustomerTaxId = (customerId: string) => {
+    return customers.find(customer => customer.id === customerId)?.taxId || '-'
+  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -63,7 +67,7 @@ export function Estimates({ onNewEstimate, setActiveView }: EstimatesProps) {
       number: `2026-${String(Math.floor(Math.random() * 1000)).padStart(4, '0')}`,
       customerId: estimate.customerId,
       customerName: estimate.customer,
-      customerTaxId: '12345678',
+      customerTaxId: getCustomerTaxId(estimate.customerId),
       issueDate: new Date().toISOString().split('T')[0],
       serviceDateFrom: new Date().toISOString().split('T')[0],
       serviceDateTo: new Date().toISOString().split('T')[0],
@@ -146,7 +150,7 @@ export function Estimates({ onNewEstimate, setActiveView }: EstimatesProps) {
                         <TableCell>{formatDate(est.date)}</TableCell>
                         <TableCell>
                           <div className="font-medium">{est.customer}</div>
-                          <div className="text-xs text-gray-500">{est.customerId}</div>
+                          <div className="text-xs text-gray-500">{getCustomerTaxId(est.customerId)}</div>
                         </TableCell>
                         <TableCell className="text-right font-semibold">{formatCurrency(est.total)}</TableCell>
                         <TableCell>{getStatusBadge(est.status)}</TableCell>
