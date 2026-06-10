@@ -30,6 +30,7 @@ export interface InvoiceItem {
   vatRate: VatRate
   discountPercent?: number
   discountAmount?: number
+  netBeforeDiscount?: number
   net: number
   vatAmount: number
   gross: number
@@ -66,6 +67,11 @@ export interface Invoice {
   totalNet: number
   totalVat: number
   totalGross: number
+  totalNetBeforeDiscount?: number
+  totalItemDiscounts?: number
+  totalNetAfterItemDiscounts?: number
+  invoiceDiscountAmount?: number
+  finalNetBase?: number
   vatBreakdown: Record<VatRate, number>
   status: InvoiceStatus
   note?: string
