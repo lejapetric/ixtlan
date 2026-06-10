@@ -825,7 +825,6 @@ export function InvoiceArchive({ onEditInvoice }: InvoiceArchiveProps) {
               Počisti vse filtre
             </Button>
             <Button size="sm" variant="secondary">Izvoz Excel</Button>
-            <Button size="sm" variant="secondary">Izvoz PDF</Button>
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
