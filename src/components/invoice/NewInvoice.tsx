@@ -1172,7 +1172,7 @@ const NumberInput = ({ value, onChange, min = 0, step = 0.01, className = "" }: 
                 {Object.entries(totals.vatBreakdown).map(([rate, amount]) => (
                   amount > 0 && (
                     <div key={rate} className="flex justify-between text-sm">
-                      <span className="text-gray-600">DDV {rate}%:</span>
+                      <span className="text-gray-600">DDV stopnje {rate}%:</span>
                       <span>{formatCurrency(amount)}</span>
                     </div>
                   )
