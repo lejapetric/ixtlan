@@ -12,12 +12,15 @@ interface InvoiceViewProps {
 }
 
 const companyData = {
-  name: 'Geodetstvo Novak d.o.o.',
-  address: 'Geodetska ulica 4, 1000 Ljubljana',
-  taxId: 'SI12345678',
-  trr: 'SI56 6100 0002 3456 789',
-  phone: '+386 1 234 5678',
-  email: 'info@geodetstvo-novak.si',
+  name: 'Geodetski biro Kranj d.o.o.',
+  address: 'Prešernova cesta 22, 4000 Kranj',
+  taxId: 'SI78945612',
+  registrationNumber: '65412378',
+  trr: 'SI56 2900 0000 1234 567',
+  bic: 'BKSI SI22',
+  phone: '+386 4 123 4567',
+  email: 'info@geodetstvo-kranj.si',
+  bank: 'Banka Slovenije',
 }
 
 export function InvoiceView({ invoiceId, open, onClose }: InvoiceViewProps) {
@@ -28,12 +31,21 @@ export function InvoiceView({ invoiceId, open, onClose }: InvoiceViewProps) {
 
   if (!invoice) return null
 
-  const vatBreakdown: Record<number, number> = { 22: 0, 9.5: 0, 5: 0, 0: 0 }
+  // Calculate vat breakdown by rate
+  const vatBreakdown: Record<number, { base: number; amount: number }> = { 22: { base: 0, amount: 0 }, 9.5: { base: 0, amount: 0 }, 5: { base: 0, amount: 0 }, 0: { base: 0, amount: 0 } }
+  
   invoice.items.forEach(item => {
-    const discountShare = (invoice.discountPercent / 100) * item.net
-    const base = item.net - discountShare
-    vatBreakdown[item.vatRate] += base * (item.vatRate / 100)
+    const itemBase = item.net
+    const discountShare = (invoice.discountPercent / 100) * itemBase
+    const baseAfterDiscount = itemBase - discountShare
+    vatBreakdown[item.vatRate].base += baseAfterDiscount
+    vatBreakdown[item.vatRate].amount += baseAfterDiscount * (item.vatRate / 100)
   })
+
+  // Calculate totals after discount
+  const totalNetAfterDiscount = invoice.totalNet - (invoice.totalNet * invoice.discountPercent / 100)
+  const totalVatAmount = Object.values(vatBreakdown).reduce((sum, v) => sum + v.amount, 0)
+  const totalGrossAfterDiscount = totalNetAfterDiscount + totalVatAmount
 
   const qrData = `UPNQR
   
@@ -44,45 +56,58 @@ ${companyData.trr}
 
 
 ${invoice.customerName}
-${invoice.customerName}, ${invoice.customerTaxId || ''}
+${invoice.customerAddress || ''}, ${invoice.customerTaxId || ''}
 
-${invoice.totalGross.toFixed(2)}
+${totalGrossAfterDiscount.toFixed(2)}
 EUR
 SI00 ${invoice.number}
 Račun št. ${invoice.number}
 `
 
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(qrData)}`
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(qrData)}`
 
   const handlePrint = () => {
     if (!printRef.current) return
-    const printWindow = window.open('', '', 'height=900,width=900')
+    const printWindow = window.open('', '_blank', 'height=900,width=900')
     if (!printWindow) return
 
     const styles = `
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; }
+      body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11px; line-height: 1.4; color: #1a1a1a; background: white; padding: 20px; }
       @media print { body { padding: 0; } .no-print { display: none; } }
-      .invoice-box { max-width: 800px; margin: 0 auto; }
-      .header { display: flex; justify-content: space-between; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 15px; }
-      .header-left h1 { font-size: 20px; margin-bottom: 5px; }
-      .header-info { font-size: 11px; line-height: 1.4; }
-      .header-right { text-align: right; }
-      .header-right-title { font-size: 18px; font-weight: bold; }
-      .header-right-detail { font-size: 11px; }
-      .section { margin-bottom: 15px; }
-      .section-title { font-weight: bold; margin-bottom: 5px; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-      th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-      th { background: #f5f5f5; font-weight: bold; }
-      td.number { text-align: right; }
-      .summary { float: right; width: 350px; }
-      .summary-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #ddd; }
-      .summary-total { font-weight: bold; font-size: 14px; border-top: 2px solid #000; padding-top: 8px; margin-top: 8px; }
-      .footer-section { clear: both; display: flex; justify-content: space-between; align-items: flex-end; margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; }
-      .qr-section { text-align: center; }
-      .qr-section img { width: 100px; height: 100px; }
-      .footer-text { text-align: center; font-size: 9px; color: #999; margin-top: 20px; padding-top: 10px; border-top: 1px solid #ddd; }
+      .invoice-container { max-width: 800px; margin: 0 auto; background: white; }
+      .invoice-header { display: flex; justify-content: space-between; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #ddd; }
+      .company-info h1 { font-size: 16px; font-weight: bold; margin-bottom: 8px; }
+      .company-info p { font-size: 9px; color: #555; margin: 2px 0; }
+      .invoice-title { text-align: right; }
+      .invoice-title .title { font-size: 22px; font-weight: bold; letter-spacing: 2px; }
+      .invoice-title .number { font-size: 12px; margin-top: 5px; color: #555; }
+      .two-columns { display: flex; justify-content: space-between; margin-bottom: 20px; }
+      .info-box { flex: 1; }
+      .info-box-label { font-size: 8px; font-weight: bold; text-transform: uppercase; color: #666; margin-bottom: 5px; letter-spacing: 0.5px; }
+      .info-box-content { font-size: 11px; }
+      .info-box-content p { margin: 3px 0; }
+      .status-badge { display: inline-block; padding: 3px 10px; background: #e8f5e9; color: #2e7d32; border-radius: 12px; font-size: 10px; font-weight: bold; }
+      table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+      th { text-align: left; padding: 10px 5px; background: #f5f5f5; font-size: 10px; font-weight: bold; text-transform: uppercase; color: #555; border-bottom: 1px solid #ddd; }
+      td { padding: 8px 5px; border-bottom: 1px solid #eee; font-size: 11px; }
+      td:last-child, th:last-child { text-align: right; }
+      td:nth-child(2), th:nth-child(2) { text-align: right; }
+      td:nth-child(3), th:nth-child(3) { text-align: right; }
+      td:nth-child(4), th:nth-child(4) { text-align: right; }
+      .vat-summary { float: right; width: 280px; margin: 20px 0; }
+      .vat-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 10px; border-bottom: 1px solid #eee; }
+      .vat-total { font-weight: bold; border-top: 2px solid #333; padding-top: 8px; margin-top: 5px; }
+      .payment-info { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; }
+      .payment-grid { display: flex; justify-content: space-between; gap: 40px; }
+      .payment-column { flex: 1; }
+      .payment-label { font-size: 8px; font-weight: bold; text-transform: uppercase; color: #666; margin-bottom: 5px; }
+      .qr-container { text-align: center; }
+      .qr-container img { width: 100px; height: 100px; }
+      .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 8px; color: #999; text-align: center; }
+      .clearfix { clear: both; }
+      .text-right { text-align: right; }
+      .text-center { text-align: center; }
     `
 
     const html = `
@@ -94,7 +119,7 @@ Račun št. ${invoice.number}
         <style>${styles}</style>
       </head>
       <body>
-        <div class="invoice-box">
+        <div class="invoice-container">
           ${printRef.current.innerHTML}
         </div>
       </body>
@@ -106,13 +131,17 @@ Račun št. ${invoice.number}
     setTimeout(() => printWindow.print(), 250)
   }
 
+  // Get customer address from customer object or use fallback
+  const customerAddress = customer?.address || ''
+  const customerTaxId = invoice.customerTaxId || (customer?.taxId || '')
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="flex flex-row justify-between items-center">
-          <DialogTitle>Račun {invoice.number}</DialogTitle>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white">
+        <DialogHeader className="flex flex-row justify-between items-center border-b pb-3">
+          <DialogTitle className="text-gray-700">Račun {invoice.number}</DialogTitle>
           <div className="flex gap-2 no-print">
-            <Button size="sm" variant="secondary" onClick={handlePrint}>
+            <Button size="sm" variant="outline" onClick={handlePrint}>
               <Printer className="w-4 h-4 mr-1" /> Natisni
             </Button>
             <Button size="sm" variant="ghost" onClick={onClose}>
@@ -122,116 +151,161 @@ Račun št. ${invoice.number}
         </DialogHeader>
 
         <div ref={printRef} className="bg-white p-6">
-          <div className="header">
-            <div>
-              <h1 className="text-2xl font-bold">{companyData.name}</h1>
-              <div className="header-info">
-                <p>{companyData.address}</p>
-                <p>ID za DDV: {companyData.taxId}</p>
-                <p>TRR: {companyData.trr}</p>
-                <p>T: {companyData.phone}</p>
-                <p>E: {companyData.email}</p>
+          {/* Header */}
+          <div className="invoice-header">
+            <div className="company-info">
+              <h1>{companyData.name}</h1>
+              <p>{companyData.address}</p>
+              <p>ID za DDV: {companyData.taxId} | Matična št.: {companyData.registrationNumber}</p>
+              <p>TRR: {companyData.trr} | BIC: {companyData.bic}</p>
+              <p>T: {companyData.phone} | E: {companyData.email}</p>
+            </div>
+            <div className="invoice-title">
+              <div className="title">RAČUN</div>
+              <div className="number">{invoice.number}</div>
+            </div>
+          </div>
+
+          {/* Two column info */}
+          <div className="two-columns">
+            <div className="info-box">
+              <div className="info-box-label">PREJEMNIK</div>
+              <div className="info-box-content">
+                <p><strong>{invoice.customerName}</strong></p>
+                <p>{customerAddress}</p>
+                {customerTaxId && <p>ID za DDV: {customerTaxId}</p>}
+                {customer?.registrationNumber && <p>Matična št.: {customer.registrationNumber}</p>}
               </div>
             </div>
-            <div className="header-right">
-              <div className="header-right-title">RAČUN</div>
-              <div className="header-right-detail">Številka: {invoice.number}</div>
-              <div className="header-right-detail">Datum: {formatDate(invoice.issueDate)}</div>
+            <div className="info-box text-right">
+              <div className="info-box-label">PODATKI RAČUNA</div>
+              <div className="info-box-content">
+                <p>Datum izdaje: {formatDate(invoice.issueDate)}</p>
+                <p>Datum storitve: {formatDate(invoice.serviceDateFrom)} - {formatDate(invoice.serviceDateTo)}</p>
+                <p>Datum zapadlosti: {formatDate(invoice.dueDate)}</p>
+                <p>Rok plačila: {invoice.paymentTermDays} dni</p>
+              </div>
+              <div className="mt-2">
+                <span className="status-badge">
+                  {invoice.status === 'paid' ? 'PLAČANO' : invoice.status === 'overdue' ? 'ZAPADLO' : 'NE PORAVNANO'}
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="section">
-            <div className="section-title">Prejemnik:</div>
-            <p className="text-sm">{invoice.customerName}</p>
-            <p className="text-sm text-gray-600">Davčna številka: {invoice.customerTaxId}</p>
-            {customer && <p className="text-sm text-gray-600">{customer.address}</p>}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 mb-6 text-sm section">
-            <div>
-              <span className="font-semibold">Datum storitve:</span> {formatDate(invoice.serviceDateFrom)} – {formatDate(invoice.serviceDateTo)}
-            </div>
-            <div>
-              <span className="font-semibold">Datum zapadlosti:</span> {formatDate(invoice.dueDate)}
-            </div>
-          </div>
-
+          {/* Items Table */}
           <table>
             <thead>
               <tr>
                 <th>Opis</th>
-                <th className="text-right">Količina</th>
-                <th className="text-right">Cena (€)</th>
-                <th className="text-right">DDV %</th>
-                <th className="text-right">Neto (€)</th>
-                <th className="text-right">Bruto (€)</th>
+                <th class="text-right">Količina</th>
+                <th class="text-right">Cena (€)</th>
+                <th class="text-right">Popust</th>
+                <th class="text-right">Neto (€)</th>
+                <th class="text-right">DDV</th>
+                <th class="text-right">Bruto (€)</th>
               </tr>
             </thead>
             <tbody>
-              {invoice.items.map(item => (
-                <tr key={item.id}>
-                  <td>
-                    {item.description}
-                    {item.parcelNumber && (
-                      <div className="text-xs text-gray-500">
-                        Parcela {item.parcelNumber}, k.o. {item.cadastralMunicipality}
-                      </div>
-                    )}
-                  </td>
-                  <td className="text-right">{item.quantity}</td>
-                  <td className="text-right">{formatCurrency(item.price)}</td>
-                  <td className="text-right">{item.vatRate}%</td>
-                  <td className="text-right">{formatCurrency(item.net)}</td>
-                  <td className="text-right">{formatCurrency(item.gross)}</td>
-                </tr>
-              ))}
+              {invoice.items.map(item => {
+                const itemDiscount = item.discountPercent || 0
+                const itemNetAfterDiscount = item.net
+                const itemGross = item.gross
+                return (
+                  <tr key={item.id}>
+                    <td>
+                      {item.description}
+                      {item.parcelNumber && (
+                        <div className="text-gray-400" style={{ fontSize: '9px', marginTop: '2px' }}>
+                          Parcela {item.parcelNumber}
+                          {item.cadastralMunicipality && `, k.o. ${item.cadastralMunicipality}`}
+                        </div>
+                      )}
+                      {item.itemNote && (
+                        <div className="text-gray-400" style={{ fontSize: '9px', marginTop: '2px' }}>
+                          {item.itemNote}
+                        </div>
+                      )}
+                    </td>
+                    <td class="text-right">{item.quantity} {item.unit}</td>
+                    <td class="text-right">{formatCurrency(item.price)}</td>
+                    <td class="text-right">{itemDiscount > 0 ? `${itemDiscount}%` : '-'}</td>
+                    <td class="text-right">{formatCurrency(itemNetAfterDiscount)}</td>
+                    <td class="text-right">{item.vatRate}%</td>
+                    <td class="text-right">{formatCurrency(itemGross)}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
 
-          <div className="summary">
-            <div className="summary-row">
-              <span>Skupaj neto:</span>
+          {/* VAT Summary */}
+          <div className="vat-summary">
+            <div className="vat-row">
+              <span>Skupaj neto pred popustom:</span>
               <span>{formatCurrency(invoice.totalNet)}</span>
             </div>
             {invoice.discountPercent > 0 && (
-              <div className="summary-row">
-                <span>Popust ({invoice.discountPercent}%):</span>
-                <span>- {formatCurrency((invoice.totalNet * invoice.discountPercent) / 100)}</span>
+              <div className="vat-row">
+                <span>Popust na račun ({invoice.discountPercent}%):</span>
+                <span>- {formatCurrency(invoice.totalNet * invoice.discountPercent / 100)}</span>
               </div>
             )}
-            <div className="summary-row font-medium">
-              <span>Osnova za DDV:</span>
-              <span>{formatCurrency(invoice.totalNet - (invoice.totalNet * invoice.discountPercent) / 100)}</span>
+            <div className="vat-row">
+              <span>Skupaj neto po popustu:</span>
+              <span>{formatCurrency(totalNetAfterDiscount)}</span>
             </div>
-            {Object.entries(vatBreakdown).map(([rate, amount]) =>
-              amount > 0 ? (
-                <div key={rate} className="summary-row">
-                  <span>DDV {rate}%:</span>
-                  <span>{formatCurrency(amount)}</span>
+            {Object.entries(vatBreakdown).map(([rate, data]) => 
+              data.base > 0 && (
+                <div key={rate} className="vat-row">
+                  <span>DDV {rate}% (od {formatCurrency(data.base)}):</span>
+                  <span>{formatCurrency(data.amount)}</span>
                 </div>
-              ) : null
+              )
             )}
-            <div className="summary-row summary-total">
-              <span>SKUPAJ BRUTO:</span>
-              <span>{formatCurrency(invoice.totalGross)}</span>
+            <div className="vat-row vat-total">
+              <span>SKUPAJ ZA PLAČILO (z DDV):</span>
+              <span>{formatCurrency(totalGrossAfterDiscount)}</span>
+            </div>
+          </div>
+          <div className="clearfix"></div>
+
+          {/* Payment Info */}
+          <div className="payment-info">
+            <div className="payment-grid">
+              <div className="payment-column">
+                <div className="payment-label">PODATKI ZA PLAČILO</div>
+                <p style={{ fontSize: '10px', margin: '3px 0' }}>IBAN: <strong>{companyData.trr}</strong></p>
+                <p style={{ fontSize: '10px', margin: '3px 0' }}>Banka: {companyData.bank}</p>
+                <p style={{ fontSize: '10px', margin: '3px 0' }}>BIC/SWIFT: {companyData.bic}</p>
+                <p style={{ fontSize: '10px', margin: '3px 0' }}>Sklic: SI00 {invoice.number}</p>
+                <p style={{ fontSize: '10px', margin: '3px 0' }}>Namen: Račun št. {invoice.number}</p>
+              </div>
+              <div className="payment-column">
+                <div className="payment-label">NAČIN PLAČILA</div>
+                <p style={{ fontSize: '10px', margin: '3px 0' }}>Bančno nakazilo</p>
+                <p style={{ fontSize: '10px', margin: '3px 0' }}>Rok plačila: {formatDate(invoice.dueDate)}</p>
+              </div>
+              <div className="qr-container">
+                <img src={qrCodeUrl} alt="UPN QR koda" />
+                <p style={{ fontSize: '8px', color: '#999', marginTop: '5px' }}>Skenirajte za hitro plačilo</p>
+              </div>
             </div>
           </div>
 
-          <div className="footer-section">
-            <div className="text-sm max-w-md">
-              <p>
-                <span className="font-semibold">Opombe:</span> {invoice.note || 'Brez opomb.'}
+          {/* Notes */}
+          {invoice.note && (
+            <div style={{ marginTop: '20px', paddingTop: '10px', borderTop: '1px solid #eee' }}>
+              <p style={{ fontSize: '9px', color: '#666' }}>
+                <strong>Opombe:</strong> {invoice.note}
               </p>
-              <p className="mt-2">Račun je potrebno plačati v roku 30 dni. Hvala za sodelovanje.</p>
             </div>
-            <div className="qr-section">
-              <img src={qrCodeUrl} alt="UPN QR koda" />
-              <div className="text-xs text-gray-500 mt-1">UPN QR koda</div>
-            </div>
-          </div>
+          )}
 
-          <div className="footer-text">
-            Geodetstvo Novak d.o.o. • TRR: {companyData.trr} • ID za DDV: {companyData.taxId}
+          {/* Footer */}
+          <div className="footer">
+            <p>Račun je izdan v skladu z Zakonom o davku na dodano vrednost (ZDDV-1).</p>
+            <p>{companyData.name} • {companyData.address} • ID za DDV: {companyData.taxId} • TRR: {companyData.trr}</p>
           </div>
         </div>
       </DialogContent>

@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { Search, Eye, Mail, CheckCircle, Trash2, Pencil, X, ChevronDown, Calendar, DollarSign, Percent, Clock, Filter, Send, Ban } from 'lucide-react'
+import { Search, Eye, Mail, CheckCircle, Trash2, Pencil, X, ChevronDown, Calendar, DollarSign, Percent, Clock, Filter, Send, Ban, Printer, History } from 'lucide-react'
 import { Invoice, InvoiceStatus } from '@/types'
 import { InvoiceView } from './InvoiceView'
 import { NewInvoice } from './NewInvoice'
@@ -62,6 +62,31 @@ const NumberInput = ({ value, onChange, placeholder, className = "" }: any) => (
     className={className}
   />
 )
+
+// Definicija dogodkov za revizijsko sled
+interface AuditLogEntry {
+  id: string
+  invoiceId: string
+  invoiceNumber: string
+  action: 'created' | 'edited' | 'sent' | 'paid' | 'cancelled' | 'status_changed' | 'printed'
+  user: string
+  userRole: string
+  timestamp: string
+  oldValue?: string
+  newValue?: string
+  details?: string
+}
+
+// Mock audit log data (v realnosti bi prihajalo iz baze)
+const mockAuditLogs: AuditLogEntry[] = [
+  { id: 'a1', invoiceId: 'inv1', invoiceNumber: '2026-0047', action: 'created', user: 'Maja Novak', userRole: 'tajnistvo', timestamp: '2026-06-07T10:00:00Z', details: 'Račun ustvarjen' },
+  { id: 'a2', invoiceId: 'inv1', invoiceNumber: '2026-0047', action: 'sent', user: 'Maja Novak', userRole: 'tajnistvo', timestamp: '2026-06-07T10:30:00Z', details: 'Račun poslan po e-pošti' },
+  { id: 'a3', invoiceId: 'inv1', invoiceNumber: '2026-0047', action: 'paid', user: 'Igor Žagar', userRole: 'direktor', timestamp: '2026-07-10T14:00:00Z', details: 'Račun označen kot plačan' },
+  { id: 'a4', invoiceId: 'inv2', invoiceNumber: '2026-0046', action: 'created', user: 'Maja Novak', userRole: 'tajnistvo', timestamp: '2026-06-03T08:00:00Z', details: 'Račun ustvarjen' },
+  { id: 'a5', invoiceId: 'inv2', invoiceNumber: '2026-0046', action: 'sent', user: 'Maja Novak', userRole: 'tajnistvo', timestamp: '2026-06-04T09:00:00Z', details: 'Račun poslan po e-pošti' },
+  { id: 'a6', invoiceId: 'inv3', invoiceNumber: '2026-0041', action: 'created', user: 'Ana Kuhar', userRole: 'projektant', timestamp: '2026-04-28T12:00:00Z', details: 'Račun ustvarjen' },
+  { id: 'a7', invoiceId: 'inv3', invoiceNumber: '2026-0041', action: 'cancelled', user: 'Maja Novak', userRole: 'tajnistvo', timestamp: '2026-05-15T09:00:00Z', details: 'Račun storniran - Razlog: Kupec je podvojil naročilo' },
+]
 
 export function InvoiceArchive({ onEditInvoice }: InvoiceArchiveProps) {
   const { invoices, deleteInvoice, updateInvoice, customers } = useInvoices()
@@ -123,6 +148,10 @@ export function InvoiceArchive({ onEditInvoice }: InvoiceArchiveProps) {
   // Edit modal states
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editingInvoiceData, setEditingInvoiceData] = useState<Invoice | null>(null)
+  
+  // Audit log modal states
+  const [auditModalOpen, setAuditModalOpen] = useState(false)
+  const [auditInvoice, setAuditInvoice] = useState<Invoice | null>(null)
 
   // Helper function to format date for comparison
   function formatDateForCompare(date: Date | null): string {
@@ -275,6 +304,47 @@ export function InvoiceArchive({ onEditInvoice }: InvoiceArchiveProps) {
   const filteredPaid = filterInvoices('paid')
   const filteredOverdue = filterInvoices('overdue')
 
+  // Print function
+  const handlePrint = (invoice: Invoice) => {
+    setSelectedInvoiceId(invoice.id)
+    setTimeout(() => {
+      const printContent = document.querySelector('.invoice-print-content')
+      if (printContent) {
+        const printWindow = window.open('', '_blank', 'width=900,height=700')
+        if (printWindow) {
+          printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <title>Račun ${invoice.number}</title>
+                <style>
+                  * { margin: 0; padding: 0; box-sizing: border-box; }
+                  body { font-family: 'Arial', sans-serif; font-size: 12px; padding: 20px; }
+                  @media print {
+                    body { padding: 0; }
+                    .no-print { display: none; }
+                  }
+                  .no-print { text-align: center; margin-top: 20px; }
+                  button { padding: 10px 20px; margin: 0 10px; font-size: 14px; cursor: pointer; }
+                </style>
+              </head>
+              <body>
+                <div class="no-print">
+                  <button onclick="window.print();">Natisni</button>
+                  <button onclick="window.close();">Zapri</button>
+                </div>
+                <div id="print-area">
+                  ${printContent.innerHTML}
+                </div>
+              </body>
+            </html>
+          `)
+          printWindow.document.close()
+        }
+      }
+    }, 500)
+  }
+
   // Email modal handlers
   const openEmailModal = (invoice: Invoice) => {
     setEmailInvoice(invoice)
@@ -286,10 +356,8 @@ export function InvoiceArchive({ onEditInvoice }: InvoiceArchiveProps) {
   const handleSendEmail = () => {
     if (!emailInvoice) return
     
-    // Simulate sending email
-    alert(`E-pošta poslana na naslov kupca ${emailInvoice.customerName}\n\nZadeva: ${emailSubject}\n\nVsebina: ${emailBody}\n\nPriloga: Racun_${emailInvoice.number}.pdf`)
+    alert(`E-pošta poslana na naslov kupca ${emailInvoice.customerName}\n\nZadeva: ${emailSubject}\n\nPriloga: Racun_${emailInvoice.number}.pdf`)
     
-    // Update invoice status to 'sent'
     updateInvoice(emailInvoice.id, { status: 'sent', sentAt: new Date().toISOString() })
     
     setEmailModalOpen(false)
@@ -341,6 +409,42 @@ export function InvoiceArchive({ onEditInvoice }: InvoiceArchiveProps) {
     }
   }
 
+  // Audit log modal
+  const openAuditModal = (invoice: Invoice) => {
+    setAuditInvoice(invoice)
+    setAuditModalOpen(true)
+  }
+
+  const getAuditLogsForInvoice = (invoiceId: string) => {
+    return mockAuditLogs.filter(log => log.invoiceId === invoiceId).sort((a, b) => 
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    )
+  }
+
+  const getActionLabel = (action: string) => {
+    switch (action) {
+      case 'created': return 'Ustvarjen'
+      case 'edited': return 'Urejen'
+      case 'sent': return 'Poslan'
+      case 'paid': return 'Plačan'
+      case 'cancelled': return 'Storniran'
+      case 'status_changed': return 'Status spremenjen'
+      case 'printed': return 'Natisnjen'
+      default: return action
+    }
+  }
+
+  const getActionColor = (action: string) => {
+    switch (action) {
+      case 'created': return 'bg-green-100 text-green-800'
+      case 'edited': return 'bg-blue-100 text-blue-800'
+      case 'sent': return 'bg-purple-100 text-purple-800'
+      case 'paid': return 'bg-emerald-100 text-emerald-800'
+      case 'cancelled': return 'bg-red-100 text-red-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
   const renderTable = (invoiceList: Invoice[]) => (
     <div className="overflow-x-auto">
       <Table>
@@ -356,7 +460,7 @@ export function InvoiceArchive({ onEditInvoice }: InvoiceArchiveProps) {
             <TableHead className="text-right min-w-[80px]">Popust %</TableHead>
             <TableHead className="min-w-[100px]">Status</TableHead>
             <TableHead className="min-w-[100px]">Zapadlost</TableHead>
-            <TableHead className="min-w-[180px]"></TableHead>
+            <TableHead className="min-w-[220px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -389,7 +493,27 @@ export function InvoiceArchive({ onEditInvoice }: InvoiceArchiveProps) {
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1 flex-wrap">
-                    {/* Edit button - for drafts only or replace view */}
+                    {/* Print button */}
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      title="Natisni račun"
+                      onClick={() => handlePrint(inv)}
+                    >
+                      <Printer className="w-4 h-4" />
+                    </Button>
+                    
+                    {/* History/Audit button */}
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      title="Dnevnik sprememb"
+                      onClick={() => openAuditModal(inv)}
+                    >
+                      <History className="w-4 h-4" />
+                    </Button>
+                    
+                    {/* Edit button */}
                     <Button 
                       size="sm" 
                       variant="ghost" 
@@ -803,6 +927,55 @@ export function InvoiceArchive({ onEditInvoice }: InvoiceArchiveProps) {
               clearEditing={handleEditComplete}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Audit Log Modal - Dnevnik sprememb */}
+      <Dialog open={auditModalOpen} onOpenChange={setAuditModalOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="w-5 h-5" />
+              Dnevnik sprememb - {auditInvoice?.number}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {auditInvoice && getAuditLogsForInvoice(auditInvoice.id).length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <History className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p>Ni zabeleženih sprememb za ta račun</p>
+                <p className="text-sm mt-1">Ko bodo izvedene akcije (pošiljanje, plačilo, stornacija...), se bodo prikazale tukaj</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {auditInvoice && getAuditLogsForInvoice(auditInvoice.id).map((log) => (
+                  <div key={log.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border">
+                    <div className={`px-2 py-1 rounded-md text-xs font-medium ${getActionColor(log.action)}`}>
+                      {getActionLabel(log.action)}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start flex-wrap gap-2">
+                        <div>
+                          <span className="font-medium">{log.user}</span>
+                          <span className="text-xs text-gray-500 ml-2">({log.userRole})</span>
+                        </div>
+                        <span className="text-xs text-gray-500">{formatDate(log.timestamp)} ob {new Date(log.timestamp).toLocaleTimeString('sl-SI')}</span>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-1">{log.details}</p>
+                      {log.oldValue && log.newValue && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Sprememba: {log.oldValue} → {log.newValue}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAuditModalOpen(false)}>Zapri</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

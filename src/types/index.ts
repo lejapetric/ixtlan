@@ -95,3 +95,44 @@ export interface User {
   role: 'tajnistvo' | 'direktor' | 'projektant' | 'zunanji' | 'admin'
   active: boolean
 }
+
+export interface Invoice {
+  id: string
+  number: string
+  customerId: string
+  customerName: string
+  customerTaxId: string
+  customerAddress?: string
+  issueDate: string
+  serviceDateFrom: string
+  serviceDateTo: string
+  dueDate: string
+  paymentTermDays: number
+  items: InvoiceItem[]
+  discountPercent: number
+  totalNet: number
+  totalVat: number
+  totalGross: number
+  vatBreakdown: Record<VatRate, number>
+  status: InvoiceStatus
+  note?: string
+  pdfUrl?: string
+  sentAt?: string
+  paidAt?: string
+  cancelledReason?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Customer {
+  id: string
+  name: string
+  taxId: string
+  address: string
+  email: string
+  phone?: string
+  vatId?: string
+  selfBilling?: boolean
+  isCompany: boolean
+  registrationNumber?: string
+}
