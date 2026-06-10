@@ -1066,10 +1066,10 @@ const NumberInput = ({ value, onChange, min = 0, step = 0.01, className = "" }: 
   {(item.parcelNumber || item.cadastralMunicipality || item.cadastreName || item.landRegisterId) && (
     <div className="text-xs text-gray-500 mt-1">
       {[
-        item.parcelNumber && `št. ${item.parcelNumber}`,
-        item.cadastralMunicipality && `k.o. ${item.cadastralMunicipality}`,
-        item.cadastreName && `${item.cadastreName}`,
-        item.landRegisterId && `ID: ${item.landRegisterId}`
+        item.parcelNumber && `št. parcele: ${item.parcelNumber}`,
+        item.cadastralMunicipality && `kat.občina: ${item.cadastralMunicipality}`,
+        item.cadastreName && `katastr: ${item.cadastreName}`,
+        item.landRegisterId && `ID zaznambe: ${item.landRegisterId}`
       ].filter(Boolean).join(' | ')}
     </div>
   )}
@@ -1199,7 +1199,7 @@ const NumberInput = ({ value, onChange, min = 0, step = 0.01, className = "" }: 
               
               {/* Dodatno: Skupni znesek brez DDV (za informacijo) */}
               <div className="flex justify-between text-xs text-gray-400 pt-1">
-                <span>Skupaj brez DDV:</span>
+                <span>Skupni znesek za plačilo (brez DDV):</span>
                 <span>{formatCurrency(totals.finalNetBase)}</span>
               </div>
             </div>
